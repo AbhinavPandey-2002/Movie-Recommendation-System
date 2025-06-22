@@ -5,12 +5,9 @@ import numpy as np
 import requests
 import os
 
-
 OMDB_API_KEY = "e160367f"
 
-
 CACHE_FILE = "poster_cache.pkl"
-
 
 if os.path.exists(CACHE_FILE):
     with open(CACHE_FILE, "rb") as f:
@@ -18,10 +15,9 @@ if os.path.exists(CACHE_FILE):
 else:
     poster_cache = {}
 
-
-similarity = pickle.load(open("similarity.pkl", "rb"))
+# Load new similarity file
+similarity2 = pickle.load(open("similarity2.pkl", "rb"))
 movies_data = pickle.load(open("movies.pkl", "rb"))
-
 
 if "poster_path" in movies_data.columns:
     local_posters = {}
@@ -29,23 +25,17 @@ if "poster_path" in movies_data.columns:
         title = row["title"]
         p = row["poster_path"]
         if pd.notna(p) and isinstance(p, str) and p.strip():
-            
             local_posters[title] = f"https://image.tmdb.org/t/p/w500{p}"
         else:
             local_posters[title] = None
 else:
     local_posters = {}
 
-
-
 def url_exists(url: str) -> bool:
-    
     try:
-        
         r = requests.head(url, timeout=3)
         if r.status_code == 200:
             return True
-        
         if r.status_code in (405, 403):
             r2 = requests.get(url, stream=True, timeout=5)
             return r2.status_code == 200
@@ -53,28 +43,16 @@ def url_exists(url: str) -> bool:
     except:
         return False
 
-
-
 def fetch_poster(title: str) -> str | None:
-    """
-    1) If TMDb local poster_path exists and is valid (HTTP 200), return it.
-    2) Else if cached (title in poster_cache), return that cached URL or None.
-    3) Otherwise, query OMDb, verify it, cache result (or None), and return.
-    """
-
-    
     if title in local_posters and local_posters[title]:
         candidate = local_posters[title]
         if url_exists(candidate):
             return candidate
-        
         local_posters[title] = None
 
-    
     if title in poster_cache:
         return poster_cache[title]
 
-    
     try:
         omdb_url = (
             f"http://www.omdbapi.com/?t={requests.utils.quote(title)}"
@@ -93,29 +71,22 @@ def fetch_poster(title: str) -> str | None:
     except:
         poster_url = None
 
-    
     poster_cache[title] = poster_url
     with open(CACHE_FILE, "wb") as f:
         pickle.dump(poster_cache, f)
 
     return poster_url
 
-
-
 def recommend(movie_title: str) -> pd.DataFrame:
-    """
-    Return a DataFrame of the top-10 most similar movies (including the input).
-    We’ll remove the input movie itself downstream.
-    """
     idx = movies_data[movies_data["title"] == movie_title].index[0]
-    sims = similarity[idx]
+    sims = similarity2[idx][1:]  # Skip the first one (it will be the same movie)
     
-    top10_idxs = np.argsort(sims)[::-1][:10]
-    df_sim = movies_data.iloc[top10_idxs].copy()
-    df_sim["similarity"] = sims[top10_idxs]
+    indices = [i[0] for i in sims]
+    similarity_scores = [i[1] for i in sims]
+
+    df_sim = movies_data.iloc[indices].copy()
+    df_sim["similarity"] = similarity_scores
     return df_sim.sort_values(by="similarity", ascending=False)
-
-
 
 st.title("🎬 Movie Recommender")
 
@@ -123,7 +94,7 @@ selected_movie = st.selectbox("Select a movie:", movies_data["title"].values)
 
 if st.button("Recommend"):
     recs = recommend(selected_movie)
-    recs = recs[recs["title"] != selected_movie]  
+    recs = recs[recs["title"] != selected_movie]
 
     shown = 0
     cols = st.columns(5)
@@ -135,7 +106,6 @@ if st.button("Recommend"):
         title = row["title"]
         poster_url = fetch_poster(title)
 
-        
         if poster_url is None:
             continue
 
