@@ -15,7 +15,7 @@ if os.path.exists(CACHE_FILE):
 else:
     poster_cache = {}
 
-# Load new similarity file
+
 similarity2 = pickle.load(open("similarity2.pkl", "rb"))
 movies_data = pickle.load(open("movies.pkl", "rb"))
 
@@ -79,7 +79,7 @@ def fetch_poster(title: str) -> str | None:
 
 def recommend(movie_title: str) -> pd.DataFrame:
     idx = movies_data[movies_data["title"] == movie_title].index[0]
-    sims = similarity2[idx][1:]  # Skip the first one (it will be the same movie)
+    sims = similarity2[idx][1:]  
     
     indices = [i[0] for i in sims]
     similarity_scores = [i[1] for i in sims]
